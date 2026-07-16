@@ -249,6 +249,9 @@
       61:{img:"/img/responsive/bilder-gruen-3_2cronenbourg_brunnen_1024.jpg",page:"cronenbourg-brunnen"},
       68:{img:"/img/responsive/bilder-gruen-3_2genovevabrunnen_1_1024.jpg",page:"genovevabrunnen"}
     };
+    const externalMedia={
+      29:{img:"assets/allianz-brunnen.jpg",page:"http://www.3d-meier.de",credit:"© 3d-meier.de"}
+    };
 
     const isIssue=w=>w.action&&w.action!=="0";
     const esc=s=>String(s??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
@@ -317,12 +320,12 @@
     }
 
     function popupHtml(w){
-      const media=officialMedia[w.id];
+      const official=officialMedia[w.id],media=official||externalMedia[w.id];
       const query=encodeURIComponent(`${w.name} Köln Brunnen`);
       const osm=`https://www.openstreetmap.org/?mlat=${w.lat}&mlon=${w.lon}#map=19/${w.lat}/${w.lon}`;
       const commons=`https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=${query}`;
       const actions=media
-        ?`<a class="primary-link" href="${esc(SKD_BRUNNEN+media.page)}" target="_blank" rel="noopener">Offizielle Seite</a><a class="secondary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a>`
+        ?`<a class="primary-link" href="${esc(official?SKD_BRUNNEN+media.page:media.page)}" target="_blank" rel="noopener">${official?"Offizielle Seite":"Bildquelle"}</a><a class="secondary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a>`
         :`<a class="primary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a><a class="secondary-link" href="${commons}" target="_blank" rel="noopener">Fotos suchen</a>`;
       return `<article><div class="popup-photo" id="photo-${w.id}"><div class="photo-loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3c-2.8 3.4-5 6.2-5 9.2a5 5 0 0 0 10 0C17 9.2 14.8 6.4 12 3Z"/></svg><span>Foto wird geladen</span></div></div><div class="popup-body"><div class="popup-id">Brunnen Nr. ${w.id}</div><h2 class="popup-title">${esc(w.name)}</h2><p class="popup-address">${esc(w.address)}</p><div class="facts"><span class="fact">${esc(w.district)}</span><span class="fact">${esc(w.quarter)}</span><span class="fact">Baujahr ${w.year||"unbekannt"}</span></div>${w.note?`<div class="note"><strong>Hinweis:</strong> ${esc(w.note)}</div>`:""}${isIssue(w)?`<div class="issue-note"><strong>Datenprüfung:</strong> ${esc(w.action)}</div>`:""}<div class="popup-actions">${actions}</div></div></article>`;
     }
@@ -350,13 +353,13 @@
     }
     function loadPhoto(w){
       const box=document.getElementById(`photo-${w.id}`);if(!box||box.dataset.loaded)return;box.dataset.loaded="true";
-      const media=officialMedia[w.id];
+      const official=officialMedia[w.id],media=official||externalMedia[w.id];
       if(!media){loadCommonsPhoto(w,box);return;}
-      const src=encodeURI(SKD+media.img);
+      const src=encodeURI(official?SKD+media.img:new URL(media.img,location.href).href);
       const img=new Image();
       img.onload=()=>{
-        const credit=[media.officialName,"© Stadt Köln"].filter(Boolean).join(" · ");
-        box.innerHTML=`<img src="${esc(src)}" alt="${esc(media.officialName||w.name)}, Foto: Stadt Köln"><a class="photo-credit" href="${esc(SKD_BRUNNEN+media.page)}" target="_blank" rel="noopener">${esc(credit)}</a>`;
+        const credit=official?[media.officialName,"© Stadt Köln"].filter(Boolean).join(" · "):media.credit;
+        box.innerHTML=`<img src="${esc(src)}" alt="${esc(media.officialName||w.name)}, Foto: ${esc(official?"Stadt Köln":media.credit)}"><a class="photo-credit" href="${esc(official?SKD_BRUNNEN+media.page:media.page)}" target="_blank" rel="noopener">${esc(credit)}</a>`;
       };
       img.onerror=()=>loadCommonsPhoto(w,box);
       img.src=src;
