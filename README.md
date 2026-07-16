@@ -27,7 +27,7 @@ nicht als offizielle Stadtseite auftritt.
 
 ## Nutzung
 
-Die Datei [`koelner-brunnen-karte.html`](koelner-brunnen-karte.html) einfach im
+Die Datei [`index.html`](index.html) einfach im
 Browser öffnen – keine Installation nötig. Für die Foto- und Karten-Funktionen
 wird eine Internetverbindung benötigt.
 
