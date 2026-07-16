@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Interaktive Karte der Kölner Brunnen mit 63 Standorten, offiziellen Fotos der Stadt Köln, Informationen und Datenqualitäts-Hinweisen.">
+  <meta name="theme-color" content="#ee0000">
+  <title>Kölner Brunnenatlas</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4' fill='%23ee0000'/%3E%3Cpath d='M12 5c-2.4 2.9-4.2 5.2-4.2 7.7a4.2 4.2 0 0 0 8.4 0C16.2 10.2 14.4 7.9 12 5Z' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://www.stadt-koeln.de">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin>
+  <style>
+    /* Farb- und Typo-Token angelehnt an das Corporate Design der Stadt Köln
+       (stadt-koeln.de /css/x22/config.css): Rot #ee0000, Dunkelrot #a01e28,
+       Text #262626/#555, Rahmen #eae8e3, Flächen #f3f3f3/#faf7f5, Blau-Box #e9eef3. */
+    :root {
+      --red:#ee0000;
+      --red-dark:#a01e28;
+      --ink:#262626;
+      --ink-soft:#555;
+      --line:#eae8e3;
+      --line-strong:#b5b2ad;
+      --paper:#f3f3f3;
+      --panel:#ffffff;
+      --box:#faf7f5;
+      --blue:#008ceb;
+      --blue-dark:#285f8c;
+      --blue-bg:#e9eef3;
+      --yellow:#ffd200;
+      --yellow-bg:#fff6d6;
+      --yellow-ink:#6e5b13;
+      --shadow:0 .5rem 1rem rgba(0,0,0,.2);
+      --radius:4px;
+    }
+    *{box-sizing:border-box}
+    .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+    html,body{height:100%;margin:0}
+    body{font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;background:var(--paper);color:var(--ink)}
+    button,input,select{font:inherit}
+    button,a{touch-action:manipulation}
+    a{color:var(--red-dark)}
+    :is(a,button,input,select,[tabindex]):focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+    .app{height:100%;display:grid;grid-template-rows:auto 1fr;min-height:620px}
+
+    .topbar{position:relative;z-index:1001;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 24px;background:var(--panel);border-top:4px solid var(--red);border-bottom:1px solid var(--line)}
+    .brand{display:flex;align-items:center;gap:13px;min-width:0}
+    .brand-mark{flex:none;width:42px;height:42px;display:grid;place-items:center;border-radius:var(--radius);background:var(--red);color:#fff}
+    .brand-mark svg{width:25px;height:25px}
+    .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:700;color:var(--red)}
+    h1{margin:2px 0 0;font-size:22px;line-height:1.1;font-weight:700;white-space:nowrap;color:var(--ink)}
+    .top-meta{display:flex;align-items:center;gap:16px;color:var(--ink-soft);font-size:12px;white-space:nowrap}
+    .top-meta a{color:var(--red-dark);font-weight:700;text-decoration-thickness:2px;text-underline-offset:3px}
+
+    .shell{min-height:0;display:grid;grid-template-columns:360px 1fr}
+    .sidebar{position:relative;z-index:500;display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line)}
+    .controls{padding:16px 16px 14px;border-bottom:1px solid var(--line)}
+    .search-wrap{position:relative}
+    .search-wrap svg{position:absolute;left:12px;top:12px;width:18px;height:18px;color:var(--ink-soft);pointer-events:none}
+    .search{width:100%;height:42px;padding:0 12px 0 38px;border:1px solid var(--line-strong);border-radius:var(--radius);background:#fff;color:var(--ink);outline-offset:2px;transition:border-color .15s,box-shadow .15s}
+    .search:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(238,0,0,.15)}
+    .filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .select{height:38px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--radius);background:#fff;color:var(--ink)}
+    .select:focus{border-color:var(--red)}
+    .toggles{display:grid;gap:7px;margin-top:12px}
+    .toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);cursor:pointer}
+    .toggle input{width:16px;height:16px;accent-color:var(--red)}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:14px}
+    .stat{padding:9px 4px;border:1px solid var(--line);border-radius:var(--radius);background:var(--box);text-align:center}
+    .stat strong{display:block;font-size:19px;line-height:1.15;color:var(--ink)}
+    .stat span{font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+    .result-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px}
+    .result-head strong{font-size:13px}
+    .reset{border:0;background:transparent;color:var(--red-dark);font-size:12px;font-weight:700;cursor:pointer;padding:6px;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px}
+    .reset:hover{text-decoration-color:currentColor}
+
+    .well-list{overflow:auto;padding:0 8px 16px;scrollbar-width:thin;scrollbar-color:#c9c6c1 transparent}
+    .well-item{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;width:100%;padding:10px 8px;border:0;border-bottom:1px solid #f0eeea;background:transparent;color:inherit;text-align:left;cursor:pointer;border-radius:var(--radius);transition:background .15s}
+    .well-item:hover{background:var(--box)}
+    .well-item.active{background:var(--box);box-shadow:inset 3px 0 0 var(--red)}
+    .list-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--radius);background:var(--paper);color:var(--ink);font-size:11px;font-weight:700}
+    .well-item.issue .list-icon{background:var(--yellow);color:var(--ink)}
+    .well-main{min-width:0}
+    .well-name{display:flex;align-items:center;gap:5px;min-width:0;font-size:12px;font-weight:700}
+    .well-name em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:normal}
+    .well-name svg{flex:none;width:12px;height:12px;color:#a5a29d}
+    .well-loc{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;font-size:10px;color:var(--ink-soft)}
+    .well-year{font-size:12px;color:var(--ink-soft)}
+    .empty{padding:26px 18px;text-align:center;color:var(--ink-soft);font-size:13px}
+
+    .map-wrap{position:relative;min-height:0;background:#e2e0dc}
+    #map{width:100%;height:100%;min-height:520px}
+    .map-tools{position:absolute;z-index:700;right:14px;top:14px;display:flex;gap:8px}
+    .map-btn{height:38px;padding:0 12px;display:flex;align-items:center;gap:7px;border:1px solid var(--line-strong);border-radius:var(--radius);background:#fff;color:var(--ink);box-shadow:var(--shadow);cursor:pointer;font-size:11px;font-weight:700}
+    .map-btn:hover{border-color:var(--red);color:var(--red-dark)}
+    .map-btn svg{width:15px;height:15px}
+    .map-status{position:absolute;z-index:720;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.96);color:var(--ink-soft);box-shadow:var(--shadow);font-size:11px;transition:opacity .2s,visibility .2s}
+    .map-status.hidden{opacity:0;visibility:hidden}
+    .map-status-dot{width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1.2s ease-in-out infinite}
+    @keyframes pulse{50%{opacity:.35;transform:scale(.92)}}
+    .legend{position:absolute;z-index:700;left:14px;bottom:18px;display:flex;align-items:center;gap:14px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.95);box-shadow:var(--shadow);font-size:10px;color:var(--ink-soft)}
+    .legend-item{display:flex;align-items:center;gap:6px}
+    .legend-dot{width:10px;height:10px;border-radius:50%;background:var(--red);border:2px solid #fff;box-shadow:0 0 0 1px var(--red)}
+    .legend-dot.warn{background:var(--yellow);box-shadow:0 0 0 1px #c7a400}
+    .data-note{position:absolute;z-index:700;right:14px;bottom:18px;max-width:320px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--radius);background:rgba(255,255,255,.94);color:var(--ink-soft);font-size:9px;line-height:1.5;box-shadow:var(--shadow)}
+    .leaflet-control-zoom a{color:var(--ink)!important}
+
+    .leaflet-popup-content-wrapper{border-radius:6px;padding:0;box-shadow:var(--shadow);overflow:hidden}
+    .leaflet-popup-content{width:310px!important;margin:0!important}
+    .leaflet-popup-tip{background:var(--panel)}
+    .popup-photo{height:165px;position:relative;display:grid;place-items:center;background:linear-gradient(135deg,#ece9e4,#dcd9d3);overflow:hidden;color:var(--ink-soft)}
+    .popup-photo img{width:100%;height:100%;object-fit:cover;display:block}
+    .photo-loading{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:11px;text-align:center;padding:0 14px}
+    .photo-loading svg{width:28px;height:28px;animation:pulse 1.5s ease-in-out infinite}
+    .photo-loading a{color:var(--red-dark);font-weight:700}
+    .photo-credit{position:absolute;right:7px;bottom:7px;max-width:92%;padding:4px 7px;border-radius:3px;background:rgba(38,38,38,.82);color:#fff!important;font-size:8px;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .popup-body{padding:15px 16px 14px;background:var(--panel)}
+    .popup-id{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+    .popup-title{margin:4px 0;font-size:19px;line-height:1.15;font-weight:700;color:var(--ink)}
+    .popup-address{margin:0 0 10px;font-size:11px;color:var(--ink-soft)}
+    .facts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .fact{padding:5px 7px;border-radius:3px;background:var(--paper);font-size:9px;color:var(--ink)}
+    .note{margin-top:8px;padding:8px 9px;border-left:3px solid var(--blue);background:var(--blue-bg);font-size:9px;line-height:1.45;color:var(--blue-dark)}
+    .issue-note{margin-top:8px;padding:8px 9px;border-left:3px solid var(--yellow);background:var(--yellow-bg);font-size:9px;line-height:1.45;color:var(--yellow-ink)}
+    .popup-actions{display:flex;gap:7px;margin-top:12px}
+    .popup-actions a{flex:1;padding:8px 6px;border-radius:var(--radius);text-align:center;text-decoration:none;font-size:9px;font-weight:700}
+    .primary-link{background:var(--red);color:#fff!important}
+    .primary-link:hover{background:var(--red-dark)}
+    .secondary-link{border:1px solid var(--line-strong);color:var(--ink)!important;background:#fff}
+    .secondary-link:hover{border-color:var(--red);color:var(--red-dark)!important}
+
+    .custom-marker{position:relative;width:25px;height:25px;border-radius:50% 50% 50% 9px;transform:rotate(-45deg);background:var(--red);border:3px solid #fff;box-shadow:0 4px 10px rgba(38,38,38,.35)}
+    .custom-marker svg{position:absolute;width:17px;height:17px;left:1px;top:1px;transform:rotate(45deg);color:#fff;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .custom-marker.issue{background:var(--yellow)}
+    .custom-marker.issue svg{color:var(--ink)}
+    .custom-marker.selected{background:var(--ink);transform:rotate(-45deg) scale(1.18);box-shadow:0 0 0 4px rgba(38,38,38,.22),0 5px 12px rgba(38,38,38,.4)}
+    .custom-marker.selected svg{color:#fff}
+    .user-dot{width:16px;height:16px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 2px var(--blue),0 3px 8px rgba(0,0,0,.3)}
+
+    @media(max-width:860px){
+      .app{height:auto;min-height:100%}
+      .topbar{padding:10px 14px}.top-meta{display:none}h1{font-size:19px}
+      .shell{grid-template-columns:1fr;grid-template-rows:minmax(480px,62vh) auto}
+      .map-wrap{grid-row:1}.sidebar{grid-row:2;border-right:0;border-top:1px solid var(--line);min-height:500px}
+      .well-list{max-height:430px}.data-note{display:none}.legend{left:10px;bottom:12px}.map-tools{right:10px;top:10px}
+    }
+    @media(max-width:480px){
+      .brand-mark{width:36px;height:36px}.eyebrow{font-size:8px}h1{font-size:17px}
+      .shell{grid-template-rows:minmax(430px,58vh) auto}.map-btn span{display:none}.map-btn{width:38px;padding:0;justify-content:center}
+      .legend{gap:9px}.leaflet-popup-content{width:280px!important}.popup-photo{height:145px}
+      .stats{grid-template-columns:repeat(2,1fr)}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *{animation:none!important;transition:none!important}
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c-2.8 3.4-5 6.2-5 9.2a5 5 0 0 0 10 0C17 9.2 14.8 6.4 12 3Z"/><path d="M4 20h16M8 17.4l-2 2.6m10-2.6 2 2.6"/></svg>
+        </div>
+        <div><div class="eyebrow">Brunnen in Köln</div><h1>Kölner Brunnenatlas</h1></div>
+      </div>
+      <div class="top-meta">
+        <span><strong id="totalStat">63</strong>&nbsp;Standorte</span>
+        <span>Datenstand 15.07.2026</span>
+        <a href="https://www.stadt-koeln.de/leben-in-koeln/freizeit-natur-sport/brunnen/index.html" target="_blank" rel="noopener">stadt-koeln.de</a>
+      </div>
+    </header>
+
+    <div class="shell">
+      <aside class="sidebar" aria-label="Brunnen suchen und filtern">
+        <section class="controls">
+          <div class="search-wrap">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <label class="sr-only" for="search">Brunnen suchen</label>
+            <input class="search" id="search" type="search" placeholder="Name, Adresse oder Stadtteil" title="Suche – Tastenkürzel: /">
+          </div>
+          <div class="filters">
+            <label><span class="sr-only">Stadtbezirk</span><select class="select" id="district"><option value="">Alle Bezirke</option></select></label>
+            <label><span class="sr-only">Baujahr</span><select class="select" id="period"><option value="">Alle Baujahre</option><option value="historic">Vor 1950</option><option value="modern">1950 bis 1999</option><option value="new">Ab 2000</option><option value="unknown">Ohne Baujahr</option></select></label>
+          </div>
+          <div class="toggles">
+            <label class="toggle"><input id="issues" type="checkbox"> Nur Einträge mit Prüfhinweis</label>
+            <label class="toggle"><input id="noPhoto" type="checkbox"> Nur Einträge ohne offizielles Foto</label>
+          </div>
+          <div class="stats" role="group" aria-label="Kennzahlen">
+            <div class="stat"><strong id="countStat">63</strong><span>sichtbar</span></div>
+            <div class="stat"><strong id="districtStat">8</strong><span>Bezirke</span></div>
+            <div class="stat"><strong id="issueStat">29</strong><span>zu prüfen</span></div>
+            <div class="stat"><strong id="photoStat">26</strong><span>mit Foto</span></div>
+          </div>
+        </section>
+        <div class="result-head"><strong id="resultLabel">Alle Brunnen</strong><button class="reset" id="reset" type="button">Filter löschen</button></div>
+        <div class="well-list" id="wellList"></div>
+        <div class="sr-only" role="status" aria-live="polite" id="liveCount"></div>
+      </aside>
+
+      <section class="map-wrap" aria-label="Interaktive Karte der Kölner Brunnen">
+        <div id="map"></div>
+        <div class="map-status" id="mapStatus" role="status"><i class="map-status-dot" aria-hidden="true"></i><span>Grundkarte wird geladen</span></div>
+        <div class="map-tools">
+          <button class="map-btn" id="locate" type="button" aria-label="Eigenen Standort anzeigen"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg><span>Standort</span></button>
+          <button class="map-btn" id="fit" type="button" aria-label="Alle sichtbaren Brunnen anzeigen"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg><span>Auswahl zeigen</span></button>
+        </div>
+        <div class="legend" role="group" aria-label="Legende"><span class="legend-item"><i class="legend-dot"></i>ohne Prüfhinweis</span><span class="legend-item"><i class="legend-dot warn"></i>Prüfung offen</span></div>
+        <div class="data-note">Fotos: Stadt Köln (stadt-koeln.de, © Stadt Köln). Ohne offizielles Foto wird automatisch in Wikimedia Commons gesucht. Bildzuordnung und Fachdaten bitte vor Veröffentlichung prüfen.</div>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin></script>
+  <script>
+    const wells=[{"id":1,"name":"Bierbrunnen","address":"Schildergassse","district":"Innenstadt","quarter":"Altstadt/Nord","year":1972,"note":"","action":"","lat":50.9365156,"lon":6.9554837},{"id":2,"name":"Brunnen am Breslauer Platz","address":"Breslauer Platz","district":"Innenstadt","quarter":"Altstadt/Nord","year":2014,"note":"kein offizieller Name","action":"Name prüfen, anpassen","lat":50.9435891,"lon":6.9596993},{"id":3,"name":"Opernbrunnen","address":"Offenbachplatz","district":"Innenstadt","quarter":"Altstadt/Nord","year":1967,"note":"","action":"Name korrigieren","lat":50.9380202,"lon":6.9525226},{"id":4,"name":"Ostermannbrunnen","address":"Ostermannplatz","district":"Innenstadt","quarter":"Altstadt/Nord","year":1938,"note":"","action":"","lat":50.9378057,"lon":6.9608824},{"id":5,"name":"Börsenbrunnen","address":"Börsenplatz","district":"Innenstadt","quarter":"Altstadt/Nord","year":null,"note":"","action":"","lat":50.9427689,"lon":6.9507908},{"id":6,"name":"Domfontäne","address":"Roncalliplatz/Dom Südseite","district":"Innenstadt","quarter":"Altstadt/Nord","year":1973,"note":"","action":"Name, Adresse korrigieren","lat":50.9407894,"lon":6.9574874},{"id":7,"name":"Taubenbrunnen","address":"Dom Westseite","district":"Innenstadt","quarter":"Altstadt/Nord","year":1953,"note":"","action":"","lat":50.9412092,"lon":6.9563565},{"id":8,"name":"Heinzelmännchenbrunnen","address":"Am Hof","district":"Innenstadt","quarter":"Altstadt/Nord","year":1889,"note":"","action":"","lat":50.9399771,"lon":6.957309},{"id":9,"name":"Fastnachtsbrunnen","address":"Gülichplatz","district":"Innenstadt","quarter":"Altstadt/Nord","year":1913,"note":"","action":"","lat":50.9375675,"lon":6.9579536},{"id":10,"name":"Brunnen am Römeraquädukt / Brunnen an der Römischen Hafenstraße","address":"Römische Hafenstraße","district":"Innenstadt","quarter":"Altstadt/Nord","year":null,"note":"kein offizieller Name","action":"Name prüfen/korrigieren","lat":50.9402495,"lon":6.9589628},{"id":11,"name":"Römmerbrunnen","address":"Komödienstraße","district":"Innenstadt","quarter":"Altstadt/Nord","year":1915,"note":"","action":"","lat":50.9413508,"lon":6.9511682},{"id":12,"name":"Fischweiberbrunnen","address":"Fischmarkt","district":"Innenstadt","quarter":"Altstadt/Nord","year":1986,"note":"","action":"Name korrigieren","lat":50.9384312,"lon":6.9623682},{"id":13,"name":"DuMont-Brunnen","address":"Hanns-Hartmann-Platz","district":"Innenstadt","quarter":"Altstadt/Nord","year":1986,"note":"","action":"Name, Adresse korrigieren","lat":50.9389287,"lon":6.9483486},{"id":14,"name":"Paolozzibrunnen","address":"Rheingarten","district":"Innenstadt","quarter":"Altstadt/Nord","year":1986,"note":"","action":"","lat":50.9404009,"lon":6.9623149},{"id":15,"name":"Dionysos-Brunnen","address":"Am Dom","district":"Innenstadt","quarter":"Altstadt/Nord","year":1973,"note":"","action":"","lat":50.9413353,"lon":6.9596231},{"id":16,"name":"Marsplatz, Pumpe","address":"Marsplatz","district":"Innenstadt","quarter":"Altstadt/Nord","year":null,"note":"","action":"","lat":50.9376102,"lon":6.9593096},{"id":17,"name":"Jan-von-Werth-Brunnen","address":"Alter Markt","district":"Innenstadt","quarter":"Altstadt/Nord","year":1884,"note":"","action":"","lat":50.938603,"lon":6.9600225},{"id":18,"name":"Rathausbrunnen","address":"Spanischer Bau","district":"Innenstadt","quarter":"Altstadt/Nord","year":1971,"note":"","action":"","lat":50.9390133,"lon":6.9585327},{"id":19,"name":"Petrusbrunnen","address":"Dom Nordseite","district":"Innenstadt","quarter":"Altstadt/Nord","year":1870,"note":"","action":"","lat":50.9410039,"lon":6.9578023},{"id":20,"name":"An Groß St. Martin","address":"Platz von St. Matin","district":"Innenstadt","quarter":"Altstadt/Nord","year":1980,"note":"","action":"","lat":50.9388906,"lon":6.9615048},{"id":23,"name":"An der Eiche","address":"Platz an der Eiche","district":"Innenstadt","quarter":"Altstadt/Süd","year":1979,"note":"","action":"","lat":50.9248012,"lon":6.9596352},{"id":24,"name":"Hermann-Josef-Brunnen","address":"Waidmarkt","district":"Innenstadt","quarter":"Altstadt/Süd","year":1894,"note":"","action":"","lat":50.9322573,"lon":6.9564564},{"id":25,"name":"Karl-Berbuer-Brunnen","address":"Karl-Berbuer-Platz","district":"Innenstadt","quarter":"Altstadt/Süd","year":1987,"note":"","action":"Name, Adresse korrigieren","lat":50.9285269,"lon":6.9568362},{"id":26,"name":"Stollwerk Mädchen","address":"Severinstraße","district":"Innenstadt","quarter":"Altstadt/Süd","year":1989,"note":"","action":"","lat":50.9232329,"lon":6.9590451},{"id":28,"name":"Arnold von Siegen","address":"Severinstraße","district":"Innenstadt","quarter":"Altstadt/Süd","year":1962,"note":"","action":"","lat":50.928734,"lon":6.9577264},{"id":29,"name":"Allianz-Brunnen","address":"Kaiser Wilhelm Ring","district":"Innenstadt","quarter":"Neustadt/Nord","year":null,"note":"","action":"","lat":50.9449125,"lon":6.9426278},{"id":30,"name":"Fische im Netz","address":"Kaiser Wilhelm Ring","district":"Innenstadt","quarter":"Neustadt/Nord","year":1971,"note":"","action":"","lat":50.9429817,"lon":6.9407691},{"id":31,"name":"Kaiser Wilhelm Ring","address":"Kaiser Wilhelm Ring","district":"Innenstadt","quarter":"Neustadt/Nord","year":1882,"note":"","action":"","lat":50.943803,"lon":6.9414924},{"id":32,"name":"Wasser Kinetische Plastik","address":"Ebertplatz","district":"Innenstadt","quarter":"Neustadt/Nord","year":1977,"note":"","action":"","lat":50.9504752,"lon":6.9578217},{"id":33,"name":"Kronenbrunnen","address":"Adenauerteich am Rosengarten, Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"identsich mit 35, lt. KuLaDig im Adenauerteich am Rosengarten im Rheinpark","action":"Name, Adresse korrigieren","lat":50.9506739,"lon":6.977042},{"id":34,"name":"Flamingoweiher","address":"Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"","action":"","lat":50.9462849,"lon":6.9749341},{"id":35,"name":"Kronenbrunnen","address":"Adenauerteich am Rosengarten, Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"identisch mit 33?","action":"löschen","lat":50.9508392,"lon":6.9771359},{"id":36,"name":"Siemensbecken","address":"Rheinpark","district":"Innenstadt","quarter":"Deutz","year":1957,"note":"","action":"","lat":50.9483375,"lon":6.9740255},{"id":37,"name":"Wassertreppen","address":"Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"","action":"Name anpassen","lat":50.9491999,"lon":6.9777674},{"id":39,"name":"Mittelmeergarten","address":"Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"","action":"","lat":50.9469567,"lon":6.9741559},{"id":40,"name":"Igelbrunnen","address":"Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"","action":"Name anpassen","lat":50.9500194,"lon":6.9767146},{"id":41,"name":"Brunnengarten","address":"Rheinpark","district":"Innenstadt","quarter":"Deutz","year":null,"note":"Kronenbrunnen (33) ist Teil dieses Brunnenkomplexes","action":"prüfen, ob Nennung sinnvoll","lat":50.9502513,"lon":6.9797468},{"id":42,"name":"Düxer Bock","address":"Düxer Bock","district":"Innenstadt","quarter":"Deutz","year":1964,"note":"lt. OSM Düxer Bock als Adresse","action":"sinnige Adresse prüfen","lat":50.9345787,"lon":6.9772152},{"id":43,"name":"Trinkwasserbrunnen","address":"Graf Gessler Straße","district":"Innenstadt","quarter":"Deutz","year":null,"note":"nur Trinkwasserbrunnen","action":"prüfen, Name anpassen","lat":50.9369742,"lon":6.9766367},{"id":44,"name":"Brunnen","address":"Kurt-Hackenberg-Platz","district":"Innenstadt","quarter":"Altstadt-Nord","year":2018,"note":"Innenstadt ist kein Stadtteil, kein echter Name","action":"prüfen, Adresse korrigieren","lat":50.9400002,"lon":6.9599826},{"id":45,"name":"Mühlsteinbrunnen","address":"Forstbotanischer Garten","district":"Rodenkirchen","quarter":"Rodenkirchen","year":null,"note":"","action":"Name, Adresse korrigieren","lat":50.8854082,"lon":6.9807175},{"id":46,"name":"Fischreiterbrunnen","address":"Theophanoplatz","district":"Rodenkirchen","quarter":"Zollstock","year":1913,"note":"","action":"0","lat":50.9115613,"lon":6.9423386},{"id":47,"name":"Puttenbrunnen","address":"Parkstraße","district":"Rodenkirchen","quarter":"Marienburg","year":1910,"note":"","action":"Name korrigieren","lat":50.9004452,"lon":6.9804173},{"id":48,"name":"Rondorfer Dorfbrunnen","address":"Pastoratsstraße","district":"Rodenkirchen","quarter":"Rondorf","year":null,"note":"Name 'Rondorfer Dorfbrunnen' und 'Dorfbrunnen Rondorf' meiner Ansicht nach identisch","action":"Adresse anpassen","lat":50.871676,"lon":6.9540437},{"id":50,"name":"Panbrunnen","address":"Pauliplatz","district":"Lindenthal","quarter":"Braunsfeld","year":1914,"note":"Wohnanlage 1914","action":"Name korrigieren","lat":50.9390652,"lon":6.8981343},{"id":51,"name":"Neptunbrunnen","address":"Neptunplatz","district":"Ehrenfeld","quarter":"Ehrenfeld","year":null,"note":"","action":"Name korrigieren","lat":50.9472768,"lon":6.9192076},{"id":52,"name":"Max-und-Moritz-Brunnen","address":"Lenauplatz","district":"Ehrenfeld","quarter":"Neuehrenfeld","year":1960,"note":"Schreibweise mit Bindestrich, Brunnen im Namen?","action":"Name anpassen","lat":50.9570884,"lon":6.9189654},{"id":53,"name":"Mechternbrunnen","address":"Mechternstraße","district":"Ehrenfeld","quarter":"Ehrenfeld","year":1927,"note":"","action":"","lat":50.9452552,"lon":6.9210552},{"id":55,"name":"Schnüsse-Tring-Brunnen","address":"Joseph-Roesberg-Platz","district":"Ehrenfeld","quarter":"Ossendorf","year":1982,"note":"aus OSM","action":"Name, Adresse korrigieren","lat":50.9669786,"lon":6.9057705},{"id":56,"name":"Treuer-Husar-Brunnen","address":"Grüner Brunnenweg","district":"Ehrenfeld","quarter":"Bickendorf","year":1928,"note":"","action":"Name angleichen","lat":50.9627051,"lon":6.8969438},{"id":57,"name":"Flora Brunnen, Fontäne","address":"Bot. Garten/Eingang Flora","district":"Nippes","quarter":"Nippes","year":null,"note":"","action":"0","lat":50.959578,"lon":6.9715509},{"id":58,"name":"Kaskade","address":"Botanischer Garten","district":"Nippes","quarter":"Nippes","year":null,"note":"","action":"0","lat":50.9596067,"lon":6.9698533},{"id":59,"name":"Alpinumweiher","address":"Seerosenteich, Kölner Flora","district":"Nippes","quarter":"Riehl","year":1912,"note":"Wasserfall im Seerosenteich in der Flora, 1912 angelegt","action":"Name, Adresse korrigieren","lat":50.9620629,"lon":6.9706022},{"id":60,"name":"Gedenkbrunnen","address":"Schillplatz","district":"Nippes","quarter":"Nippes","year":null,"note":"Auf dem Schillplatz stehend","action":"Name prüfen, Adresse anpassen","lat":50.9663156,"lon":6.9515448},{"id":61,"name":"Cronenbourg Brunnen","address":"Pariser Platz","district":"Chorweiler","quarter":"Chorweiler","year":null,"note":"","action":"","lat":51.0225296,"lon":6.8991836},{"id":62,"name":"Kugelbrunnen","address":"Bahnhofstraße","district":"Porz","quarter":"Porz","year":1974,"note":"","action":"","lat":50.8837338,"lon":7.0575013},{"id":63,"name":"Marktplatz Porz","address":"Wilhelmstraße","district":"Porz","quarter":"Porz","year":1974,"note":"","action":"","lat":50.8851928,"lon":7.0562979},{"id":64,"name":"Marktplatz Poll","address":"Poll","district":"Porz","quarter":"Poll","year":null,"note":"","action":"","lat":50.9161045,"lon":6.9918256},{"id":65,"name":"Mülheimia","address":"Mülheimer Freiheit","district":"Mülheim","quarter":"Mülheim","year":1884,"note":"","action":"","lat":50.9669013,"lon":7.0006808},{"id":66,"name":"Drei-Königen-Brunnen","address":"Keupstraße/Dünnw. Str.","district":"Mülheim","quarter":"Mülheim","year":null,"note":"Name bezieht sich auf Dreikönigen-Hospital, was früher dort stand","action":"Name korrigieren","lat":50.9675604,"lon":7.0032878},{"id":67,"name":"Märchenbrunnen","address":"Mülheimer Stadtgarten/Lassallestraße","district":"Mülheim","quarter":"Mülheim","year":1914,"note":"auch \"Patenschaftsbrunnen der KG Mülheimer\" wg. Inschrift","action":"Adresse anpassen","lat":50.9578679,"lon":7.0064749},{"id":68,"name":"Genovevabrunnen","address":"Viktor-Speier-Holstein-Straße","district":"Mülheim","quarter":"Mülheim","year":1914,"note":"","action":"Adresse anpassen","lat":50.9646556,"lon":7.006769},{"id":69,"name":"Marktbrunnen","address":"Geisselstraße","district":"Ehrenfeld","quarter":"Ehrenfeld","year":null,"note":"kulturraum.nrw, nicht in Liste","action":"prüfen, hinzufügen","lat":50.9476187,"lon":6.9214109}];
+
+    // Offizielle Fotos und Detailseiten von stadt-koeln.de (Quelle:
+    // /leben-in-koeln/freizeit-natur-sport/brunnen/index.html, alle Bilder © Stadt Köln).
+    // "officialName" nur gesetzt, wenn die Stadt den Brunnen anders benennt als der Datensatz.
+    const SKD="https://www.stadt-koeln.de";
+    const SKD_BRUNNEN=SKD+"/leben-in-koeln/freizeit-natur-sport/brunnen/";
+    const officialMedia={
+      4:{img:"/img/responsive/bilder-gruen-3_2ostermannbrunnen_im_herbst_gesamtansicht_1024.jpg",page:"ostermannbrunnen"},
+      5:{img:"/img/responsive/bilder-gruen-3_2börsenplatz-brunnen_2_1024.jpg",page:"boersenbrunnen"},
+      6:{img:"/img/responsive/bilder-gruen-3_2domfontäne_3_1024.jpg",page:"domfontaene"},
+      7:{img:"/img/responsive/bilder-gruen-3_2resize_1600_900_07a307a9887fb84262f85008aba0a73f_taubenbrunnen_1024.jpg",page:"taubenbrunnen"},
+      8:{img:"/img/responsive/bilder-gruen-3_2heinzelmännchenbrunnen_1024.jpg",page:"heinzelmaenchen-brunnen"},
+      9:{img:"/img/responsive/bilder-gruen-3_2fastnachtsbrunnen_1024.jpg",page:"fastnachtsbrunnen"},
+      11:{img:"/img/responsive/bilder-gruen-3_2resize_1600_900_2dcd4ea2336539b7f05ae5fdc5994161_r__merbrunnen_1024.jpg",page:"roemerbrunnen",officialName:"Römerbrunnen"},
+      12:{img:"/img/responsive/bilder-gruen-3_2fischweiberbrunnen_2_1024.jpg",page:"fischweiber-brunnen"},
+      13:{img:"/img/responsive/bilder-gruen-3_2zeitungsbrunnen_breite_strasse_1024.jpg",page:"dumont-brunnen-zeitungsbrunnen"},
+      14:{img:"/img/responsive/bilder-gruen-3_2fittosize_640_480_ba7c64acf03750f642fcc21c36f1d9cc_paolozzibrunnen_rheinufer_gesamtansicht_1024.jpg",page:"paolozzibrunnen"},
+      15:{img:"/img/responsive/bilder-gruen-3_2dionoysosbrunnen_1024.jpg",page:"dionysos-brunnen"},
+      17:{img:"/img/responsive/bilder-gruen-3_2jan-von-werth-brunnen_2_1024.jpg",page:"jan-von-werth-brunnen"},
+      18:{img:"/img/responsive/bilder-gruen-3_2resize_1600_900_d6dfb3ef11d1078e6ec8bef3593e03bf_theo-burauen-brunnen_t_1024.jpg",page:"theo-burauen-brunnen",officialName:"Theo-Burauen-Brunnen"},
+      19:{img:"/img/responsive/bilder-gruen-3_2fittosize_377_502_0a8faf9d55f499a7630e404144c0bb68_petrusbrunnen_am_dom_1024.jpg",page:"petrusbrunnen"},
+      20:{img:"/img/responsive/bilder-gruen-3_2resize_1600_900_9b3ddeffcda471c912b39c804d91de50_tierbrunnen_platz_vor_sankt_martin_1024.jpg",page:"tierbrunnen",officialName:"Tierbrunnen"},
+      23:{img:"/img/responsive/bilder-gruen-3_2eichenbrunnen__platz_an_der_eiche_1024.jpg",page:"eichenbrunnen",officialName:"Eichenbrunnen"},
+      25:{img:"/img/responsive/bilder-gruen-3_2berbuer_brunnen_gesamtansicht_1024.jpg",page:"karl-berbuer-brunnen-narrenschiff"},
+      26:{img:"/img/responsive/bilder-gruen-3_2resize_1600_900_1fb27e806ffe7e58cab0853019d558b2_stollwerk_m__dchen_severinstrasse_quer_1024.jpg",page:"trinkwasserbrunnen-stollwerk-maedchen",officialName:"Stollwerck Mädchen"},
+      28:{img:"/img/responsive/bilder-gruen-3_2fittosize_3000_2901_7da7ae0221d69a2108752da79cffbcfa_arnold-von-siegen-brunnen_7_1024.jpg",page:"arnoldt-von-siegen-brunnen"},
+      41:{img:"/img/responsive/bilder-gruen-3_2brunnengarten_im_rheinpark_bild_4_1024.jpg",page:"brunnengarten"},
+      42:{img:"/img/responsive/bilder-gruen-3_2düxer_bock_gotenring-lorenzplatz_1024.jpg",page:"duexer-bock"},
+      44:{img:"/img/responsive/bilder-gruen-3_2trinkwasserbrunnen_hackenberg-platz_1024.jpg",page:"trinkwasserbrunnen-kurt-hackenberg-platz"},
+      50:{img:"/img/responsive/bilder-gruen-3_2fittosize_2731_3571_8042878788031ee4cd1bfbe7eb8a6031_panbrunnen_5_1024.jpg",page:"panbrunnen"},
+      53:{img:"/img/responsive/bilder-gruen-3_2mechternbrunnen_2_1024.jpg",page:"mechternbrunnen"},
+      61:{img:"/img/responsive/bilder-gruen-3_2cronenbourg_brunnen_1024.jpg",page:"cronenbourg-brunnen"},
+      68:{img:"/img/responsive/bilder-gruen-3_2genovevabrunnen_1_1024.jpg",page:"genovevabrunnen"}
+    };
+
+    const isIssue=w=>w.action&&w.action!=="0";
+    const esc=s=>String(s??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
+    const normalize=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const wellById=new Map(wells.map(w=>[w.id,w]));
+    const reduceMotion=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const map=L.map("map",{zoomControl:false,minZoom:10,maxZoom:20});
+    L.control.zoom({position:"bottomright"}).addTo(map);
+    L.control.scale({imperial:false,position:"bottomleft"}).addTo(map);
+    const tileProviders=[
+      "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    ];
+    const RobustTileLayer=L.TileLayer.extend({
+      createTile(coords,done){
+        const tile=document.createElement("img");
+        tile.alt="";tile.setAttribute("role","presentation");
+        let attempt=0,finished=false,timer;
+        const finish=error=>{if(finished)return;finished=true;clearTimeout(timer);done(error,tile)};
+        const load=()=>{
+          clearTimeout(timer);
+          const template=tileProviders[attempt];
+          timer=setTimeout(()=>retry(new Error("Zeitüberschreitung beim Laden der Kartenkachel")),6500);
+          tile.src=L.Util.template(template,{z:coords.z,x:coords.x,y:coords.y,r:""});
+        };
+        const retry=error=>{
+          if(finished)return;
+          clearTimeout(timer);attempt+=1;
+          if(attempt<tileProviders.length)load();else finish(error);
+        };
+        tile.onload=()=>finish(null);tile.onerror=()=>retry(new Error("Kartenkachel konnte nicht geladen werden"));load();
+        return tile;
+      }
+    });
+    const baseLayer=new RobustTileLayer("",{maxZoom:20,keepBuffer:1,updateWhenIdle:true,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>'}).addTo(map);
+    const mapStatus=document.getElementById("mapStatus");
+    const setStatus=(text,visible=true)=>{mapStatus.querySelector("span").textContent=text;mapStatus.classList.toggle("hidden",!visible)};
+    baseLayer.on("loading",()=>setStatus("Grundkarte wird geladen"));
+    baseLayer.on("load",()=>mapStatus.classList.add("hidden"));
+    baseLayer.on("tileerror",()=>setStatus("Grundkarte wird erneut geladen"));
+
+    const markerLayer=L.layerGroup().addTo(map);
+    const markers=new Map();
+    let filtered=[...wells];
+    let activeId=null;
+    let userMarker=null;
+    const search=document.getElementById("search");
+    const district=document.getElementById("district");
+    const period=document.getElementById("period");
+    const issues=document.getElementById("issues");
+    const noPhoto=document.getElementById("noPhoto");
+    const list=document.getElementById("wellList");
+    const liveCount=document.getElementById("liveCount");
+    document.getElementById("totalStat").textContent=wells.length;
+
+    [...new Set(wells.map(w=>w.district))].sort((a,b)=>a.localeCompare(b,"de")).forEach(name=>{
+      const option=document.createElement("option");option.value=name;option.textContent=name;district.appendChild(option);
+    });
+
+    const fountainGlyph='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M8 7.5c0 2.4 1.8 4.2 4 4.2s4-1.8 4-4.2M12 6C9.2 6 7 7.7 7 10M12 6c2.8 0 5 1.7 5 4M7 13h10M9 13v4h6v-4M6 19h12"/></svg>';
+    function iconFor(w,selected=false){
+      const cls=["custom-marker",isIssue(w)?"issue":"",selected?"selected":""].filter(Boolean).join(" ");
+      return L.divIcon({className:"",html:`<div class="${cls}" aria-hidden="true">${fountainGlyph}</div>`,iconSize:[25,25],iconAnchor:[12,24],popupAnchor:[0,-24]});
+    }
+
+    function popupHtml(w){
+      const media=officialMedia[w.id];
+      const query=encodeURIComponent(`${w.name} Köln Brunnen`);
+      const osm=`https://www.openstreetmap.org/?mlat=${w.lat}&mlon=${w.lon}#map=19/${w.lat}/${w.lon}`;
+      const commons=`https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=${query}`;
+      const actions=media
+        ?`<a class="primary-link" href="${esc(SKD_BRUNNEN+media.page)}" target="_blank" rel="noopener">Offizielle Seite</a><a class="secondary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a>`
+        :`<a class="primary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a><a class="secondary-link" href="${commons}" target="_blank" rel="noopener">Fotos suchen</a>`;
+      return `<article><div class="popup-photo" id="photo-${w.id}"><div class="photo-loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3c-2.8 3.4-5 6.2-5 9.2a5 5 0 0 0 10 0C17 9.2 14.8 6.4 12 3Z"/></svg><span>Foto wird geladen</span></div></div><div class="popup-body"><div class="popup-id">Brunnen Nr. ${w.id}</div><h2 class="popup-title">${esc(w.name)}</h2><p class="popup-address">${esc(w.address)}</p><div class="facts"><span class="fact">${esc(w.district)}</span><span class="fact">${esc(w.quarter)}</span><span class="fact">Baujahr ${w.year||"unbekannt"}</span></div>${w.note?`<div class="note"><strong>Hinweis:</strong> ${esc(w.note)}</div>`:""}${isIssue(w)?`<div class="issue-note"><strong>Datenprüfung:</strong> ${esc(w.action)}</div>`:""}<div class="popup-actions">${actions}</div></div></article>`;
+    }
+
+    function stripHtml(value){const d=document.createElement("div");d.innerHTML=value||"";return d.textContent.trim();}
+    function showPhotoFallback(w,box){
+      const query=encodeURIComponent(`${w.name} Köln Brunnen`);
+      box.innerHTML=`<div class="photo-loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 17l4-4 3 3 4-5 5 6"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg><span>Kein Foto automatisch gefunden</span><a href="https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=${query}" target="_blank" rel="noopener">Wikimedia durchsuchen</a></div>`;
+    }
+    async function loadCommonsPhoto(w,box){
+      const q=encodeURIComponent(`${w.name} Köln Brunnen`);
+      const url=`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${q}&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=680&format=json&origin=*`;
+      try{
+        const res=await fetch(url);if(!res.ok)throw new Error("Fotoquelle nicht erreichbar");
+        const data=await res.json();const pages=Object.values(data.query?.pages||{}).filter(p=>p.imageinfo?.[0]?.thumburl);
+        if(!pages.length)throw new Error("Kein passendes Foto gefunden");
+        const page=pages[0],info=page.imageinfo[0],meta=info.extmetadata||{};
+        const license=stripHtml(meta.LicenseShortName?.value||meta.License?.value||"Wikimedia Commons");
+        const artist=stripHtml(meta.Artist?.value||"");
+        const label=[license,artist].filter(Boolean).join(" · ").slice(0,90);
+        box.innerHTML=`<img src="${esc(info.thumburl)}" alt="Automatisch gefundenes Foto zu ${esc(w.name)}" loading="lazy"><a class="photo-credit" href="${esc(info.descriptionurl||`https://commons.wikimedia.org/?curid=${page.pageid}`)}" target="_blank" rel="noopener">${esc(label||"Quelle: Wikimedia Commons")}</a>`;
+      }catch(e){
+        showPhotoFallback(w,box);
+      }
+    }
+    function loadPhoto(w){
+      const box=document.getElementById(`photo-${w.id}`);if(!box||box.dataset.loaded)return;box.dataset.loaded="true";
+      const media=officialMedia[w.id];
+      if(!media){loadCommonsPhoto(w,box);return;}
+      const src=encodeURI(SKD+media.img);
+      const img=new Image();
+      img.onload=()=>{
+        const credit=[media.officialName,"© Stadt Köln"].filter(Boolean).join(" · ");
+        box.innerHTML=`<img src="${esc(src)}" alt="${esc(media.officialName||w.name)}, Foto: Stadt Köln"><a class="photo-credit" href="${esc(SKD_BRUNNEN+media.page)}" target="_blank" rel="noopener">${esc(credit)}</a>`;
+      };
+      img.onerror=()=>loadCommonsPhoto(w,box);
+      img.src=src;
+    }
+
+    function updateHash(id){
+      const url=id?`#b${id}`:location.pathname+location.search;
+      history.replaceState(null,"",url);
+    }
+
+    function selectWell(w,zoom=true){
+      activeId=w.id;
+      markers.forEach((marker,id)=>marker.setIcon(iconFor(wellById.get(id),id===activeId)));
+      document.querySelectorAll(".well-item").forEach(el=>el.classList.toggle("active",Number(el.dataset.id)===activeId));
+      document.querySelector(".well-item.active")?.scrollIntoView({block:"nearest"});
+      const marker=markers.get(w.id);if(!marker)return;
+      if(zoom){
+        const targetZoom=Math.max(map.getZoom(),17);
+        if(reduceMotion)map.setView([w.lat,w.lon],targetZoom);
+        else map.flyTo([w.lat,w.lon],targetZoom,{duration:.65});
+      }
+      marker.openPopup();updateHash(w.id);setTimeout(()=>loadPhoto(w),60);
+    }
+
+    function buildMarkers(items){
+      markerLayer.clearLayers();markers.clear();
+      items.forEach(w=>{
+        const marker=L.marker([w.lat,w.lon],{icon:iconFor(w,w.id===activeId),title:w.name,alt:w.name});
+        marker.bindPopup(popupHtml(w),{maxWidth:320,minWidth:280});
+        marker.on("click",()=>selectWell(w,false));
+        marker.on("popupclose",()=>{if(activeId===w.id){activeId=null;marker.setIcon(iconFor(w));updateHash(null);renderList(filtered);}});
+        marker.addTo(markerLayer);markers.set(w.id,marker);
+      });
+    }
+
+    const cameraGlyph='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+    function renderList(items){
+      list.innerHTML="";
+      if(!items.length){list.innerHTML='<div class="empty">Keine Brunnen für diese Auswahl gefunden.</div>';return;}
+      items.forEach(w=>{
+        const hasPhoto=Boolean(officialMedia[w.id]);
+        const btn=document.createElement("button");btn.type="button";btn.className=`well-item${isIssue(w)?" issue":""}${w.id===activeId?" active":""}`;btn.dataset.id=w.id;
+        btn.setAttribute("aria-label",`${w.name}, ${w.address}${hasPhoto?", offizielles Foto vorhanden":""}`);
+        btn.innerHTML=`<span class="list-icon">${w.id}</span><span class="well-main"><span class="well-name"><em>${esc(w.name)}</em>${hasPhoto?`<span title="Offizielles Foto der Stadt Köln vorhanden">${cameraGlyph}</span>`:""}</span><span class="well-loc">${esc(w.quarter)} · ${esc(w.address)}</span></span><span class="well-year">${w.year||"?"}</span>`;
+        btn.addEventListener("click",()=>selectWell(w));list.appendChild(btn);
+      });
+    }
+
+    function fitItems(items){
+      if(!items.length)return;const bounds=L.latLngBounds(items.map(w=>[w.lat,w.lon]));map.fitBounds(bounds.pad(.12),{maxZoom:16,animate:!reduceMotion});
+    }
+
+    function applyFilters(refit=true){
+      const q=normalize(search.value),d=district.value,p=period.value,onlyIssues=issues.checked,onlyNoPhoto=noPhoto.checked;
+      filtered=wells.filter(w=>{
+        const hay=normalize([w.name,w.address,w.district,w.quarter,w.year,w.note].join(" "));
+        const periodOk=!p||(p==="historic"&&w.year&&w.year<1950)||(p==="modern"&&w.year>=1950&&w.year<2000)||(p==="new"&&w.year>=2000)||(p==="unknown"&&!w.year);
+        return (!q||hay.includes(q))&&(!d||w.district===d)&&periodOk&&(!onlyIssues||isIssue(w))&&(!onlyNoPhoto||!officialMedia[w.id]);
+      });
+      if(activeId&&!filtered.some(w=>w.id===activeId)){activeId=null;updateHash(null);}
+      buildMarkers(filtered);renderList(filtered);
+      document.getElementById("countStat").textContent=filtered.length;
+      document.getElementById("districtStat").textContent=new Set(filtered.map(w=>w.district)).size;
+      document.getElementById("issueStat").textContent=filtered.filter(isIssue).length;
+      document.getElementById("photoStat").textContent=filtered.filter(w=>officialMedia[w.id]).length;
+      document.getElementById("resultLabel").textContent=filtered.length===wells.length?`Alle ${wells.length} Brunnen`:`${filtered.length} von ${wells.length} Brunnen`;
+      liveCount.textContent=`${filtered.length} Brunnen gefunden`;
+      if(refit)fitItems(filtered);
+    }
+
+    let searchTimer;
+    search.addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>applyFilters(),170)});
+    district.addEventListener("change",()=>applyFilters());period.addEventListener("change",()=>applyFilters());
+    issues.addEventListener("change",()=>applyFilters());noPhoto.addEventListener("change",()=>applyFilters());
+    document.getElementById("fit").addEventListener("click",()=>fitItems(filtered));
+    document.getElementById("reset").addEventListener("click",()=>{search.value="";district.value="";period.value="";issues.checked=false;noPhoto.checked=false;applyFilters()});
+
+    document.getElementById("locate").addEventListener("click",()=>{
+      if(!navigator.geolocation){setStatus("Standortbestimmung nicht verfügbar");setTimeout(()=>mapStatus.classList.add("hidden"),2500);return;}
+      setStatus("Standort wird ermittelt");
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const {latitude,longitude}=pos.coords;
+        if(userMarker)userMarker.remove();
+        userMarker=L.marker([latitude,longitude],{icon:L.divIcon({className:"",html:'<div class="user-dot" aria-hidden="true"></div>',iconSize:[16,16],iconAnchor:[8,8]}),title:"Ihr Standort",alt:"Ihr Standort",zIndexOffset:1000}).addTo(map);
+        if(reduceMotion)map.setView([latitude,longitude],16);else map.flyTo([latitude,longitude],16,{duration:.65});
+        mapStatus.classList.add("hidden");
+      },()=>{setStatus("Standort nicht verfügbar");setTimeout(()=>mapStatus.classList.add("hidden"),2500);});
+    });
+
+    document.addEventListener("keydown",e=>{
+      if(e.key!=="/"||e.ctrlKey||e.metaKey||e.altKey)return;
+      const tag=document.activeElement?.tagName;
+      if(tag==="INPUT"||tag==="SELECT"||tag==="TEXTAREA")return;
+      e.preventDefault();search.focus();
+    });
+
+    function openFromHash(){
+      const match=location.hash.match(/^#b(\d+)$/);if(!match)return false;
+      const w=wellById.get(Number(match[1]));if(!w)return false;
+      if(!markers.has(w.id)){search.value="";district.value="";period.value="";issues.checked=false;noPhoto.checked=false;applyFilters(false);}
+      selectWell(w);return true;
+    }
+    window.addEventListener("hashchange",openFromHash);
+
+    applyFilters();
+    setTimeout(()=>{map.invalidateSize();openFromHash();},150);
+  </script>
+</body>
+</html>
