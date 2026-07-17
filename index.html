@@ -122,12 +122,15 @@
     .fact{padding:5px 7px;border-radius:3px;background:var(--paper);font-size:9px;color:var(--ink)}
     .note{margin-top:8px;padding:8px 9px;border-left:3px solid var(--blue);background:var(--blue-bg);font-size:9px;line-height:1.45;color:var(--blue-dark)}
     .issue-note{margin-top:8px;padding:8px 9px;border-left:3px solid var(--yellow);background:var(--yellow-bg);font-size:9px;line-height:1.45;color:var(--yellow-ink)}
-    .popup-actions{display:flex;gap:7px;margin-top:12px}
+    .popup-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
     .popup-actions a{flex:1;padding:8px 6px;border-radius:var(--radius);text-align:center;text-decoration:none;font-size:9px;font-weight:700}
     .primary-link{background:var(--red);color:#fff!important}
     .primary-link:hover{background:var(--red-dark)}
     .secondary-link{border:1px solid var(--line-strong);color:var(--ink)!important;background:#fff}
     .secondary-link:hover{border-color:var(--red);color:var(--red-dark)!important}
+    .model-link{flex-basis:100%!important;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px!important;background:linear-gradient(135deg,#292929,#4a4141);color:#fff!important;box-shadow:0 5px 14px rgba(38,38,38,.18);transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+    .model-link:hover{transform:translateY(-1px);background:linear-gradient(135deg,#181818,#3b3030);box-shadow:0 7px 18px rgba(38,38,38,.25)}
+    .model-link svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
     .custom-marker{position:relative;width:25px;height:25px;border-radius:50% 50% 50% 9px;transform:rotate(-45deg);background:var(--red);border:3px solid #fff;box-shadow:0 4px 10px rgba(38,38,38,.35)}
     .custom-marker svg{position:absolute;width:17px;height:17px;left:1px;top:1px;transform:rotate(45deg);color:#fff;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -249,11 +252,17 @@
       61:{img:"/img/responsive/bilder-gruen-3_2cronenbourg_brunnen_1024.jpg",page:"cronenbourg-brunnen"},
       68:{img:"/img/responsive/bilder-gruen-3_2genovevabrunnen_1_1024.jpg",page:"genovevabrunnen"}
     };
+    const PAGES_ASSETS="https://ertanoz.github.io/KoelnBrunnenatlas/assets/";
     const externalMedia={
-      1:{img:"assets/bierbrunnen.jpg",page:"https://commons.wikimedia.org/wiki/File:Bierbrunnen-K%C3%B6ln-Schildergasse.JPG",credit:"© Willy Horsch (HOWI) / CC BY 3.0 (via Wikimedia Commons)"},
-      29:{img:"assets/allianz-brunnen.jpg",page:"http://www.3d-meier.de",credit:"© 3d-meier.de"},
-      30:{img:"assets/fische-im-netz.avif",page:"https://www.ksta.de",credit:"© KSTA"},
-      32:{img:"assets/wasserkinetische-plastik.jpg",page:"https://commons.wikimedia.org/wiki/File:2018-07-23-Wasserkinetische_Plastik-9664.jpg",credit:"© Superbass / CC BY-SA 4.0 (via Wikimedia Commons)"}
+      1:{img:PAGES_ASSETS+"bierbrunnen.jpg",page:"https://commons.wikimedia.org/wiki/File:Bierbrunnen-K%C3%B6ln-Schildergasse.JPG",credit:"© Willy Horsch (HOWI) / CC BY 3.0 (via Wikimedia Commons)"},
+      29:{img:PAGES_ASSETS+"allianz-brunnen.jpg",page:"http://www.3d-meier.de",credit:"© 3d-meier.de"},
+      30:{img:PAGES_ASSETS+"fische-im-netz.avif",page:"https://www.ksta.de",credit:"© KSTA"},
+      32:{img:PAGES_ASSETS+"wasserkinetische-plastik.jpg",page:"https://commons.wikimedia.org/wiki/File:2018-07-23-Wasserkinetische_Plastik-9664.jpg",credit:"© Superbass / CC BY-SA 4.0 (via Wikimedia Commons)"}
+    };
+    const models3d={
+      17:"https://lumalabs.ai/capture/aae33c4f-6f40-4deb-9112-9d66c8ef1692",
+      50:"https://sketchfab.com/3d-models/koln-lindenthal-braunsfeld-paulistr-brunnen-61a96129a2904f3085d6c98e5a355680",
+      56:"https://sketchfab.com/3d-models/koln-bickendorf-denkmal-brunnen-treuer-husar-d30f11fbe60a4065ac56e6701c8d7cb1"
     };
 
     const isIssue=w=>w.action&&w.action!=="0";
@@ -324,12 +333,15 @@
 
     function popupHtml(w){
       const official=officialMedia[w.id],media=official||externalMedia[w.id];
+      const model3d=models3d[w.id];
       const query=encodeURIComponent(`${w.name} Köln Brunnen`);
       const osm=`https://www.openstreetmap.org/?mlat=${w.lat}&mlon=${w.lon}#map=19/${w.lat}/${w.lon}`;
       const commons=`https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=${query}`;
-      const actions=media
+      const standardActions=media
         ?`<a class="primary-link" href="${esc(official?SKD_BRUNNEN+media.page:media.page)}" target="_blank" rel="noopener">${official?"Offizielle Seite":"Bildquelle"}</a><a class="secondary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a>`
         :`<a class="primary-link" href="${osm}" target="_blank" rel="noopener">In OSM öffnen</a><a class="secondary-link" href="${commons}" target="_blank" rel="noopener">Fotos suchen</a>`;
+      const modelAction=model3d?`<a class="model-link" href="${esc(model3d)}" target="_blank" rel="noopener" aria-label="3D-Modell von ${esc(w.name)} in neuem Tab öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.4 7.7 7.6 4.4 7.6-4.4M12 12.1V21"/></svg><span>3D-Modell ansehen</span></a>`:"";
+      const actions=standardActions+modelAction;
       return `<article><div class="popup-photo" id="photo-${w.id}"><div class="photo-loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3c-2.8 3.4-5 6.2-5 9.2a5 5 0 0 0 10 0C17 9.2 14.8 6.4 12 3Z"/></svg><span>Foto wird geladen</span></div></div><div class="popup-body"><div class="popup-id">Brunnen Nr. ${w.id}</div><h2 class="popup-title">${esc(w.name)}</h2><p class="popup-address">${esc(w.address)}</p><div class="facts"><span class="fact">${esc(w.district)}</span><span class="fact">${esc(w.quarter)}</span><span class="fact">Baujahr ${w.year||"unbekannt"}</span></div>${w.note?`<div class="note"><strong>Hinweis:</strong> ${esc(w.note)}</div>`:""}${isIssue(w)?`<div class="issue-note"><strong>Datenprüfung:</strong> ${esc(w.action)}</div>`:""}<div class="popup-actions">${actions}</div></div></article>`;
     }
 
