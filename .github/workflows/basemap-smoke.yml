@@ -1,0 +1,46 @@
+name: Basemap smoke test
+
+on:
+  push:
+    branches:
+      - tmp
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify deployed atlas uses basemap.de
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 --connect-timeout 10 \
+            https://ertanoz.github.io/KoelnBrunnenatlas/ \
+            -o /tmp/atlas.html
+          grep -Fq 'sgx.geodatenzentrum.de/wmts_basemapde' /tmp/atlas.html
+          if grep -Fq 'basemaps.cartocdn.com' /tmp/atlas.html; then
+            echo 'CARTO reference still present in deployed page'
+            exit 1
+          fi
+          echo 'Deployed atlas contains basemap.de and no CARTO tile URL.'
+
+      - name: Verify Cologne basemap tile
+        shell: bash
+        run: |
+          set -euo pipefail
+          TILE='https://sgx.geodatenzentrum.de/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_grau/default/GLOBAL_WEBMERCATOR/15/10978/17017.png'
+          HTTP_CODE=$(curl -sS -L --retry 3 --connect-timeout 10 \
+            -o /tmp/basemap.png -w '%{http_code}' "$TILE")
+          echo "HTTP status: $HTTP_CODE"
+          test "$HTTP_CODE" = '200'
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/basemap.png')
+          data=p.read_bytes()
+          print(f'Tile bytes: {len(data)}')
+          assert len(data) > 1000, 'Tile is unexpectedly small'
+          assert data[:8] == b'\x89PNG\r\n\x1a\n', 'Response is not a PNG'
+          print('Valid PNG tile received from basemap.de.')
+          PY
